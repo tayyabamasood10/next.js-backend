@@ -1,11 +1,7 @@
-import Image from "next/image";
-// import Navbar from "./components/Navbar";
-import Navbar from "./components/Navbar";
-
-export default function Home() {
+export default function Dashboard() {
   return (
     <>
-    <Navbar/>
+   
     <div className="container">
       <h1>Home</h1>
       <p>Welcome to our website.</p>
@@ -15,5 +11,3 @@ export default function Home() {
            
   );
 }
-
-

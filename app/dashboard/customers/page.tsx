@@ -1,0 +1,10 @@
+import React from 'react'
+
+export default function CustomersPage() {
+  return (
+    <div className="p-6">
+      <h1 className="text-3xl font-bold">Customers</h1>
+      <p>Manage all customer records here.</p>
+    </div>
+  );
+}
