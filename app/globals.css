@@ -1,23 +1,82 @@
 @import "tailwindcss";
 
+@theme {
+  --color-primary: #7C5CFC;
+  --color-primary-foreground: #FFFFFF;
+  --color-secondary: #74B9FF;
+  --color-secondary-foreground: #FFFFFF;
+  --color-highlight: #FFE9A8;
+  --color-background: #F8FAFC;
+  --color-foreground: #1A1A1A;
+  --color-card: #FFFFFF;
+  --color-card-foreground: #1A1A1A;
+  --color-border: #E8ECF3;
+  --color-muted: #F8FAFC;
+  --color-muted-foreground: #6B7280;
+  --color-accent: #F8FAFC;
+  --color-accent-foreground: #1A1A1A;
+  --color-success: #00C48C;
+  --color-success-foreground: #FFFFFF;
+  --color-warning: #FFB800;
+  --color-warning-foreground: #FFFFFF;
+  --color-danger: #FF5C5C;
+  --color-danger-foreground: #FFFFFF;
+  --color-info: #4F8CFF;
+  --color-info-foreground: #FFFFFF;
 
-body {
-  margin: 0;
-  padding: 0;
-  text-align: center;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+
+  --radius-card: 18px;
+  --radius-button: 14px;
+  --radius-input: 14px;
+  --radius-modal: 20px;
+  --radius-lg: 1.125rem;
+  --radius-md: 0.875rem;
+  --radius-sm: 0.625rem;
+  --radius-full: 9999px;
 }
-#card{
-  border: 1px, solid, black;
-  border-radius: 1%;
-  margin: auto;
-  width: 50%;
-  height: 50%;
-  padding: 2%;
+
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 0 0% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 10%;
+    --primary: 252 90% 70%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 94% 80%;
+    --secondary-foreground: 0 0% 10%;
+    --highlight: 50 100% 79%;
+    --muted: 210 40% 98%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 210 40% 98%;
+    --accent-foreground: 0 0% 10%;
+    --success: 160 100% 39%;
+    --success-foreground: 0 0% 100%;
+    --warning: 43 100% 50%;
+    --warning-foreground: 0 0% 10%;
+    --danger: 0 100% 71%;
+    --danger-foreground: 0 0% 100%;
+    --info: 217 100% 65%;
+    --info-foreground: 0 0% 100%;
+    --border: 215 20% 91%;
+    --radius: 1.125rem;
+  }
 }
-/* button{
-  border: 1px, solid, black;
-  padding: 1%;
-  margin: 3%;
-  background-color: black;
-  color: white;
-} */
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
