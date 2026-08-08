@@ -88,7 +88,7 @@ export function AuthModal({ open, onOpenChange, onSuccess }: AuthModalProps) {
 
       if (error) {
         console.error("Supabase login error:", error);
-        
+
         if (error.message.includes("Invalid login credentials")) {
           setError("Invalid email or password. If you just signed up, please check your email to verify your account before logging in.");
         } else {
@@ -154,7 +154,7 @@ export function AuthModal({ open, onOpenChange, onSuccess }: AuthModalProps) {
 
       if (error) {
         console.error("Supabase signup error:", error);
-        
+
         if (error.message.includes("already registered") || error.message.includes("already exists") || error.status === 422) {
           setError("This email is already registered. Please use a different email or sign in.");
         } else {
@@ -222,7 +222,7 @@ export function AuthModal({ open, onOpenChange, onSuccess }: AuthModalProps) {
               </p>
             </div>
           </div>
-          <ModalClose>
+          <ModalClose asChild>
             <button
               type="button"
               className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"

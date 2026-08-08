@@ -21,6 +21,14 @@ export interface RecommendationItem {
   impact: string;
 }
 
+export interface Profile {
+  id: string;
+  full_name: string;
+  business_name: string;
+  email: string;
+  created_at: string;
+}
+
 export interface ActivityItem {
   id: string;
   title: string;
