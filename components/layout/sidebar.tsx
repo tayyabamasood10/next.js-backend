@@ -15,6 +15,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  Store,
 } from "lucide-react";
 import { cn } from "@/components/ui/cn";
 import { Separator } from "@/components/ui/separator";
@@ -27,6 +28,7 @@ const navItems = [
   { href: "/dashboard/reports", label: "Reports", icon: BarChart3 },
   { href: "/dashboard/orders", label: "Orders", icon: ShoppingCart },
   { href: "/dashboard/products", label: "Products", icon: Package },
+  { href: "/dashboard/store", label: "Store", icon: Store },
   { href: "/dashboard/customers", label: "Customers", icon: Users },
   { href: "/dashboard/problems", label: "Revenue Problems", icon: AlertTriangle },
   { href: "/dashboard/insights", label: "AI Insights", icon: Sparkles },

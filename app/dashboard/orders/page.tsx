@@ -11,6 +11,7 @@ import { OrderTimelineCard } from "@/components/orders/order-timeline-card";
 import { OrderDetailsDrawer } from "@/components/orders/order-details-drawer";
 import { OrderSkeleton } from "@/components/orders/order-skeleton";
 import { FilterTabs } from "@/components/orders/filter-tabs";
+import { useOrders } from "@/context/order-context";
 import {
   ShoppingCart,
   CheckCircle2,
@@ -96,15 +97,6 @@ const chartData = {
   ],
 };
 
-const orders: Order[] = [
-  { id: "#ORD-001", customer: "John Doe", productCount: 3, total: "$245.00", paymentStatus: "paid", fulfillmentStatus: "delivered", date: "2024-01-15" },
-  { id: "#ORD-002", customer: "Jane Smith", productCount: 1, total: "$89.00", paymentStatus: "pending", fulfillmentStatus: "processing", date: "2024-01-15" },
-  { id: "#ORD-003", customer: "Bob Johnson", productCount: 5, total: "$520.00", paymentStatus: "paid", fulfillmentStatus: "shipped", date: "2024-01-14" },
-  { id: "#ORD-004", customer: "Alice Brown", productCount: 2, total: "$156.00", paymentStatus: "failed", fulfillmentStatus: "processing", date: "2024-01-14" },
-  { id: "#ORD-005", customer: "Charlie Wilson", productCount: 4, total: "$380.00", paymentStatus: "paid", fulfillmentStatus: "delivered", date: "2024-01-13" },
-  { id: "#ORD-006", customer: "Diana Lee", productCount: 1, total: "$65.00", paymentStatus: "refunded", fulfillmentStatus: "cancelled", date: "2024-01-13" },
-];
-
 const alerts = [
   { id: "1", priority: "high" as const, title: "High-value order pending", description: "Order #ORD-002 worth $89.00 is pending payment for 2 hours.", estimatedImpact: "Potential $89.00 loss", icon: "high-value" as const },
   { id: "2", priority: "high" as const, title: "Payment failed", description: "Payment failed for order #ORD-004. Customer may need to retry.", estimatedImpact: "$156.00 at risk", icon: "payment" as const },
@@ -130,6 +122,7 @@ const customerInsights = [
 ];
 
 export default function OrdersPage() {
+  const { orders } = useOrders();
   const [timeFilter, setTimeFilter] = useState("Weekly");
   const [selectedOrder, setSelectedOrder] = useState<{
     id: string;
@@ -146,19 +139,34 @@ export default function OrdersPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const mappedOrders: Order[] = orders.map((o) => ({
+    id: o.id,
+    customer: o.customer.name,
+    productCount: o.items.reduce((sum, item) => sum + item.quantity, 0),
+    total: `$${o.total.toFixed(2)}`,
+    paymentStatus: "paid",
+    fulfillmentStatus: o.status === "delivered" ? "delivered" : o.status === "shipped" ? "shipped" : o.status === "processing" ? "processing" : o.status === "cancelled" ? "cancelled" : "processing",
+    date: new Date(o.createdAt).toISOString().split("T")[0],
+  }));
+
   const handleRefresh = () => {
     setLoading(true);
     setTimeout(() => setLoading(false), 1500);
   };
 
   const handleViewOrder = (order: Order) => {
+    const contextOrder = orders.find((o) => o.id === order.id);
     setSelectedOrder({
       id: order.id,
       customer: order.customer,
-      email: "customer@example.com",
-      phone: "+1 234 567 890",
-      address: "123 Main St, New York, NY 10001",
-      products: [
+      email: contextOrder?.customer.email || "customer@example.com",
+      phone: contextOrder?.customer.phone || "+1 234 567 890",
+      address: contextOrder?.customer.address || "123 Main St, New York, NY 10001",
+      products: contextOrder?.items.map((item) => ({
+        name: item.product.name,
+        quantity: item.quantity,
+        price: `$${item.product.price.toFixed(2)}`,
+      })) || [
         { name: "Product A", quantity: 2, price: "$120.00" },
         { name: "Product B", quantity: 1, price: "$89.00" },
       ],
@@ -239,7 +247,7 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      <OrderTable orders={orders} onViewOrder={handleViewOrder} />
+      <OrderTable orders={mappedOrders} onViewOrder={handleViewOrder} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">

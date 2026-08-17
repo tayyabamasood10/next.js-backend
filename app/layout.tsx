@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
+import { CartProvider } from "@/context/cart-context";
+import { OrderProvider } from "@/context/order-context";
 import "./globals.css";
 
 const geist = Geist({
@@ -20,7 +22,11 @@ export default function RootLayout({
   return (
     <html lang="en" className={geist.variable}>
       <body className="font-sans antialiased bg-background text-foreground">
-        {children}
+        <CartProvider>
+          <OrderProvider>
+            {children}
+          </OrderProvider>
+        </CartProvider>
       </body>
     </html>
   );
