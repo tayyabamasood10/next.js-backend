@@ -82,7 +82,7 @@ export default function DashboardPage() {
                 </p>
               </div>
             </div>
-            <Link href="/dashboard/store">
+            <Link href="/dashboard/stores">
               <Button className="gap-2">
                 <Store className="h-4 w-4" />
                 Create Store

@@ -1,16 +1,20 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Store } from "@/types/store";
 import { createClient } from "@/lib/supabase/client";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, Store as StoreIcon } from "lucide-react";
+import Link from "next/link";
 
 export default function CreateStorePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editId = searchParams.get("edit");
+
   const [store, setStore] = useState<Store>({
     id: "",
     name: "",
@@ -25,23 +29,69 @@ export default function CreateStorePage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [hasExistingStore, setHasExistingStore] = useState(false);
+  const [existingStore, setExistingStore] = useState<Store | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
     let mounted = true;
 
-    const fetchUser = async () => {
+    const init = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user && mounted) {
         setStore((prev) => ({ ...prev, ownerId: user.id }));
       }
+
+      if (editId && mounted) {
+        setIsEditing(true);
+        const { data: existing } = await supabase
+          .from("stores")
+          .select("*")
+          .eq("id", editId)
+          .single();
+
+        if (existing && mounted) {
+          setStore({
+            id: existing.id,
+            name: existing.name,
+            slug: existing.slug,
+            description: existing.description || "",
+            logo: existing.logo_url || "",
+            heroTitle: existing.hero_title || "",
+            heroDescription: existing.hero_description || "",
+            ownerId: existing.owner_id,
+          });
+        }
+      } else if (user && mounted) {
+        const { data: existing } = await supabase
+          .from("stores")
+          .select("*")
+          .eq("owner_id", user.id)
+          .maybeSingle();
+
+        if (existing && mounted) {
+          setHasExistingStore(true);
+          setExistingStore({
+            id: existing.id,
+            name: existing.name,
+            slug: existing.slug,
+            description: existing.description || "",
+            logo: existing.logo_url || "",
+            heroTitle: existing.hero_title || "",
+            heroDescription: existing.hero_description || "",
+            ownerId: existing.owner_id,
+          });
+        }
+      }
+
       if (mounted) setLoading(false);
     };
 
-    fetchUser();
+    init();
 
     return () => { mounted = false; };
-  }, []);
+  }, [editId]);
 
   const generateSlug = (name: string) => {
     return name
@@ -68,7 +118,7 @@ export default function CreateStorePage() {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
-        setError("You must be logged in to create a store.");
+        setError("You must be logged in to manage stores.");
         setSaving(false);
         return;
       }
@@ -81,32 +131,61 @@ export default function CreateStorePage() {
 
       const slug = generateSlug(store.slug || store.name);
 
-      const { data, error: insertError } = await supabase
-        .from("stores")
-        .insert({
-          owner_id: user.id,
-          name: store.name.trim(),
-          slug: slug,
-          description: store.description.trim(),
-          logo_url: store.logo.trim(),
-          hero_title: store.heroTitle.trim(),
-          hero_description: store.heroDescription.trim(),
-        })
-        .select()
-        .single();
+      if (isEditing && store.id) {
+        const { error: updateError } = await supabase
+          .from("stores")
+          .update({
+            name: store.name.trim(),
+            slug: slug,
+            description: store.description.trim(),
+            logo_url: store.logo.trim(),
+            hero_title: store.heroTitle.trim(),
+            hero_description: store.heroDescription.trim(),
+          })
+          .eq("id", store.id)
+          .select()
+          .single();
 
-      if (insertError) {
-        if (insertError.code === "23505") {
-          setError("A store with this slug already exists. Please choose a different slug.");
-        } else {
-          setError("Failed to create store. Please try again.");
+        if (updateError) {
+          if (updateError.code === "23505") {
+            setError("A store with this slug already exists. Please choose a different slug.");
+          } else {
+            setError("Failed to update store. Please try again.");
+          }
+          setSaving(false);
+          return;
         }
-        setSaving(false);
-        return;
-      }
 
-      router.push(`/store/${data.slug}`);
-      router.refresh();
+        router.push("/dashboard/stores");
+        router.refresh();
+      } else {
+        const { error: insertError } = await supabase
+          .from("stores")
+          .insert({
+            owner_id: user.id,
+            name: store.name.trim(),
+            slug: slug,
+            description: store.description.trim(),
+            logo_url: store.logo.trim(),
+            hero_title: store.heroTitle.trim(),
+            hero_description: store.heroDescription.trim(),
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          if (insertError.code === "23505") {
+            setError("You already have a store. You can edit your existing store instead.");
+          } else {
+            setError("Failed to create store. Please try again.");
+          }
+          setSaving(false);
+          return;
+        }
+
+        router.push(`/store/${slug}`);
+        router.refresh();
+      }
     } catch {
       setError("An unexpected error occurred. Please try again.");
       setSaving(false);
@@ -121,12 +200,47 @@ export default function CreateStorePage() {
     );
   }
 
+  if (!isEditing && hasExistingStore) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Create Store</h1>
+          <p className="text-muted-foreground mt-1">
+            Set up your online store and start selling.
+          </p>
+        </div>
+
+        <Card className="p-6">
+          <div className="flex flex-col items-center text-center gap-4">
+            <StoreIcon className="h-12 w-12 text-primary" />
+            <h3 className="font-semibold text-lg">You already have a store</h3>
+            <p className="text-muted-foreground max-w-sm">
+              You can only have one store per account. You can view or edit your existing store instead.
+            </p>
+            <div className="flex gap-3">
+              <Link href={`/store/${existingStore?.slug}`}>
+                <Button variant="outline">View Store</Button>
+              </Link>
+              <Link href={`/dashboard/store?edit=${existingStore?.id}`}>
+                <Button>Edit Store</Button>
+              </Link>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Create Store</h1>
+        <h1 className="text-3xl font-bold tracking-tight">
+          {isEditing ? "Edit Store" : "Create Store"}
+        </h1>
         <p className="text-muted-foreground mt-1">
-          Set up your online store and start selling.
+          {isEditing
+            ? "Update your store details."
+            : "Set up your online store and start selling."}
         </p>
       </div>
 
@@ -217,10 +331,10 @@ export default function CreateStorePage() {
               {saving ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Publishing...
+                  {isEditing ? "Saving..." : "Publishing..."}
                 </>
               ) : (
-                "Publish Store"
+                isEditing ? "Save Changes" : "Publish Store"
               )}
             </Button>
           </CardFooter>

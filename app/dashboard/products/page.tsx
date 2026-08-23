@@ -16,6 +16,7 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [storeId, setStoreId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [addModalKey, setAddModalKey] = useState(0);
@@ -35,10 +36,19 @@ export default function ProductsPage() {
         return;
       }
 
+      const { data: store } = await supabase
+        .from("stores")
+        .select("id")
+        .eq("owner_id", user.id)
+        .maybeSingle();
+
+      const currentStoreId = store?.id || null;
+      setStoreId(currentStoreId);
+
       const { data, error } = await supabase
         .from("products")
         .select("*")
-        .eq("store_id", user.id)
+        .eq("store_id", currentStoreId)
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -66,19 +76,15 @@ export default function ProductsPage() {
   }, [products, searchQuery]);
 
   const handleAddProduct = async (product: ProductFormData) => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setError("You must be logged in to add products.");
+    if (!storeId) {
+      setError("You must create a store before adding products.");
       return;
     }
 
     const { data, error } = await supabase
       .from("products")
       .insert({
-        store_id: user.id,
+        store_id: storeId,
         name: product.name,
         description: product.description,
         price: product.price,

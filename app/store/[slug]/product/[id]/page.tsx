@@ -1,39 +1,48 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/context/cart-context";
-import { storeProducts } from "@/lib/mock-store";
 import { Product } from "@/lib/mock-products";
 import { Minus, Plus, ArrowLeft } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { Loader2 } from "lucide-react";
 
 export default function ProductDetailPage() {
   const params = useParams();
   const { addItem } = useCart();
+  const [product, setProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
-  const product = storeProducts.find((p) => p.id === params.id) as Product | undefined;
+  useEffect(() => {
+    const fetchProduct = async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .eq("id", params.id)
+        .eq("status", "active")
+        .single();
 
-  if (!product) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-2">Product Not Found</h1>
-          <Link href={`/store/${params.slug}`}>
-            <Button variant="outline" className="mt-4">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Store
-            </Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
+      if (error || !data) {
+        setNotFound(true);
+      } else {
+        setProduct(data as Product);
+      }
+
+      setLoading(false);
+    };
+
+    fetchProduct();
+  }, [params.id]);
 
   const handleAddToCart = () => {
+    if (!product) return;
     addItem(
       {
         id: product.id,
@@ -48,6 +57,30 @@ export default function ProductDetailPage() {
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (notFound || !product) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-2">Product Not Found</h1>
+          <Link href={`/store/${params.slug}`}>
+            <Button variant="outline" className="mt-4">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Store
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">
