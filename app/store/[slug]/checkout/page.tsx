@@ -5,17 +5,16 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/context/cart-context";
-import { useOrders } from "@/context/order-context";
 import { CheckoutForm } from "@/components/store/checkout-form";
-import { Order } from "@/types/store";
 import { ArrowLeft } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 export default function CheckoutPage() {
   const params = useParams();
   const router = useRouter();
   const { items, subtotal, clearCart } = useCart();
-  const { addOrder } = useOrders();
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const shipping = 0;
   const total = subtotal + shipping;
@@ -29,36 +28,53 @@ export default function CheckoutPage() {
     postalCode: string;
   }) => {
     setSubmitting(true);
+    setError(null);
 
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    try {
+      const supabase = createClient();
 
-    const order: Order = {
-      id: `ORD-${String(Date.now()).slice(-6)}`,
-      storeId: "store-1",
-      customer,
-      items: items.map((item) => ({
-        product: {
-          id: item.product.id,
-          name: item.product.name,
-          description: item.product.description,
-          price: item.product.price,
-          image: item.product.image,
-          stock: item.product.stock,
-        },
+      const { data: store } = await supabase
+        .from("stores")
+        .select("id")
+        .eq("slug", params.slug)
+        .single();
+
+      if (!store) {
+        setError("Store not found.");
+        setSubmitting(false);
+        return;
+      }
+
+      const orderItems = items.map((item) => ({
+        product_id: item.product.id,
+        product_name: item.product.name,
+        price: item.product.price,
         quantity: item.quantity,
-      })),
-      subtotal,
-      shipping,
-      total,
-      status: "pending",
-      createdAt: new Date().toISOString(),
-    };
+        subtotal: item.product.price * item.quantity,
+      }));
 
-    addOrder(order);
-    clearCart();
-    setSubmitting(false);
+      const { data: orderId, error: rpcError } = await supabase.rpc("create_order", {
+        p_store_id: store.id,
+        p_customer_name: customer.name,
+        p_customer_email: customer.email,
+        p_customer_phone: customer.phone,
+        p_total_amount: total,
+        p_items: orderItems,
+      });
 
-    router.push(`/store/${params.slug}/order-success?orderId=${order.id}`);
+      if (rpcError) {
+        console.error("Error creating order:", rpcError);
+        setError("Failed to place order. Please try again.");
+        setSubmitting(false);
+        return;
+      }
+
+      clearCart();
+      router.push(`/store/${params.slug}/order-success?orderId=${orderId}`);
+    } catch {
+      setError("An unexpected error occurred. Please try again.");
+      setSubmitting(false);
+    }
   };
 
   if (items.length === 0) {
@@ -87,6 +103,13 @@ export default function CheckoutPage() {
         </Link>
 
         <h1 className="text-3xl font-bold tracking-tight mb-6">Checkout</h1>
+
+        {error && (
+          <div className="flex items-center gap-2 rounded-xl border border-danger/20 bg-danger/5 p-3 text-sm text-danger mb-6">
+            <span>{error}</span>
+          </div>
+        )}
+
         <CheckoutForm
           items={items}
           subtotal={subtotal}
