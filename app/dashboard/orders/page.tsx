@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { OrderStatCard } from "@/components/orders/order-stat-card";
 import { OrderStatusCard } from "@/components/orders/order-status-card";
 import { OrderAnalyticsChart } from "@/components/orders/order-analytics-chart";
@@ -27,8 +27,11 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Order as StoreOrder } from "@/types/store";
 
-interface Order {
+type DateRange = "7d" | "30d" | "90d";
+
+interface TableOrder {
   id: string;
   customer: string;
   productCount: number;
@@ -38,92 +41,16 @@ interface Order {
   date: string;
 }
 
-const kpiData = [
-  {
-    title: "Total Orders",
-    value: "1,234",
-    change: 12.5,
-    previousValue: "1,098",
-    icon: <ShoppingCart className="h-5 w-5" />,
-    sparkline: [20, 30, 25, 40, 35, 50, 45, 55, 50, 60, 58, 70] as number[],
-  },
-  {
-    title: "Completed Orders",
-    value: "856",
-    change: 8.3,
-    previousValue: "791",
-    icon: <CheckCircle2 className="h-5 w-5" />,
-    sparkline: [30, 35, 32, 40, 38, 45, 42, 50, 48, 55, 52, 60] as number[],
-  },
-  {
-    title: "Pending Orders",
-    value: "245",
-    change: -5.2,
-    previousValue: "258",
-    icon: <Clock className="h-5 w-5" />,
-    sparkline: [50, 45, 48, 42, 40, 38, 35, 32, 30, 28, 26, 24] as number[],
-  },
-  {
-    title: "Cancelled Orders",
-    value: "133",
-    change: -2.1,
-    previousValue: "136",
-    icon: <XCircle className="h-5 w-5" />,
-    sparkline: [20, 18, 22, 19, 17, 15, 18, 14, 12, 16, 13, 10] as number[],
-  },
-];
-
-const statusData = [
-  { title: "Pending", count: 245, percentage: 20, color: "#FFB800", icon: <Clock className="h-4 w-4" /> },
-  { title: "Processing", count: 189, percentage: 15, color: "#4F8CFF", icon: <BarChart3 className="h-4 w-4" /> },
-  { title: "Shipped", count: 312, percentage: 25, color: "#7C5CFC", icon: <ShoppingCart className="h-4 w-4" /> },
-  { title: "Delivered", count: 356, percentage: 29, color: "#00C48C", icon: <CheckCircle2 className="h-4 w-4" /> },
-  { title: "Cancelled", count: 98, percentage: 8, color: "#FF5C5C", icon: <XCircle className="h-4 w-4" /> },
-  { title: "Refunded", count: 34, percentage: 3, color: "#74B9FF", icon: <RefreshCw className="h-4 w-4" /> },
-];
-
-const chartData = {
-  daily: [
-    { label: "Mon", value: 45 }, { label: "Tue", value: 52 }, { label: "Wed", value: 38 },
-    { label: "Thu", value: 65 }, { label: "Fri", value: 78 }, { label: "Sat", value: 92 }, { label: "Sun", value: 84 },
-  ],
-  weekly: [
-    { label: "W1", value: 320 }, { label: "W2", value: 280 }, { label: "W3", value: 350 },
-    { label: "W4", value: 410 }, { label: "W5", value: 380 }, { label: "W6", value: 420 }, { label: "W7", value: 450 },
-  ],
-  monthly: [
-    { label: "Jan", value: 1200 }, { label: "Feb", value: 1350 }, { label: "Mar", value: 1100 },
-    { label: "Apr", value: 1450 }, { label: "May", value: 1600 }, { label: "Jun", value: 1750 },
-  ],
-};
-
-const alerts = [
-  { id: "1", priority: "high" as const, title: "High-value order pending", description: "Order #ORD-002 worth $89.00 is pending payment for 2 hours.", estimatedImpact: "Potential $89.00 loss", icon: "high-value" as const },
-  { id: "2", priority: "high" as const, title: "Payment failed", description: "Payment failed for order #ORD-004. Customer may need to retry.", estimatedImpact: "$156.00 at risk", icon: "payment" as const },
-  { id: "3", priority: "medium" as const, title: "Shipping delayed", description: "Order #ORD-003 shipping delayed due to carrier issues.", estimatedImpact: "Customer satisfaction impact", icon: "shipping" as const },
-  { id: "4", priority: "medium" as const, title: "Refund requested", description: "Customer requested refund for order #ORD-006.", estimatedImpact: "$65.00 refund", icon: "refund" as const },
-  { id: "5", priority: "low" as const, title: "Inventory unavailable", description: "2 items in order #ORD-007 are out of stock.", estimatedImpact: "Delayed fulfillment", icon: "inventory" as const },
-  { id: "6", priority: "low" as const, title: "Customer waiting", description: "Customer has been waiting for status update for 24 hours.", estimatedImpact: "Satisfaction risk", icon: "customer" as const },
-];
-
-const timelineEvents = [
-  { id: "1", title: "New order received", description: "Order #ORD-008 placed by Emma Davis.", timestamp: "10 minutes ago", icon: "order" as const },
-  { id: "2", title: "Order shipped", description: "Order #ORD-003 has been shipped via Express.", timestamp: "1 hour ago", icon: "shipped" as const },
-  { id: "3", title: "Refund processed", description: "Refund of $65.00 processed for order #ORD-006.", timestamp: "3 hours ago", icon: "refund" as const },
-  { id: "4", title: "Payment failed", description: "Payment failed for order #ORD-004.", timestamp: "5 hours ago", icon: "order" as const },
-  { id: "5", title: "Customer cancelled order", description: "Customer cancelled order #ORD-009.", timestamp: "1 day ago", icon: "cancelled" as const },
-];
-
-const customerInsights = [
-  { title: "Returning Customers", value: "42%", change: 5.2 },
-  { title: "First-time Buyers", value: "58%", change: 12.1 },
-  { title: "Avg Order Value", value: "$85.40", change: 3.8 },
-  { title: "Repeat Purchase Rate", value: "28%", change: -1.5 },
+const dateRanges = [
+  { key: "7d" as DateRange, label: "Last 7 days" },
+  { key: "30d" as DateRange, label: "Last 30 days" },
+  { key: "90d" as DateRange, label: "Last 90 days" },
 ];
 
 export default function OrdersPage() {
-  const { orders } = useOrders();
+  const { orders, loading } = useOrders();
   const [timeFilter, setTimeFilter] = useState("Weekly");
+  const [dateRange, setDateRange] = useState<DateRange>("30d");
   const [selectedOrder, setSelectedOrder] = useState<{
     id: string;
     customer: string;
@@ -137,52 +64,183 @@ export default function OrdersPage() {
     timeline: { title: string; timestamp: string }[];
   } | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const mappedOrders: Order[] = orders.map((o) => ({
+  const now = useMemo(() => new Date(), []);
+  const rangeDays = dateRange === "7d" ? 7 : dateRange === "30d" ? 30 : 90;
+  const currentStart = useMemo(() => new Date(now.getTime() - rangeDays * 24 * 60 * 60 * 1000), [now, rangeDays]);
+  const previousStart = useMemo(() => new Date(currentStart.getTime() - rangeDays * 24 * 60 * 60 * 1000), [currentStart, rangeDays]);
+
+  const currentOrders = useMemo(
+    () =>
+      orders.filter((o) => {
+        const date = new Date(o.createdAt);
+        return date >= currentStart && date <= now;
+      }),
+    [orders, currentStart, now]
+  );
+
+  const previousOrders = useMemo(
+    () =>
+      orders.filter((o) => {
+        const date = new Date(o.createdAt);
+        return date >= previousStart && date < currentStart;
+      }),
+    [orders, previousStart, currentStart]
+  );
+
+  const totalOrders = currentOrders.length;
+  const pendingOrders = currentOrders.filter((o) => o.status === "pending").length;
+  const cancelledOrders = currentOrders.filter((o) => o.status === "cancelled").length;
+  const completedOrders = totalOrders - pendingOrders - cancelledOrders;
+
+  const prevTotal = previousOrders.length;
+  const prevPending = previousOrders.filter((o) => o.status === "pending").length;
+  const prevCancelled = previousOrders.filter((o) => o.status === "cancelled").length;
+  const prevCompleted = prevTotal - prevPending - prevCancelled;
+
+  const calcChange = (current: number, previous: number) => {
+    if (previous === 0) return current > 0 ? 100 : 0;
+    return Number((((current - previous) / previous) * 100).toFixed(1));
+  };
+
+  const kpiData = useMemo(
+    () => [
+      {
+        title: "Total Orders",
+        value: totalOrders.toLocaleString(),
+        change: calcChange(totalOrders, prevTotal),
+        previousValue: prevTotal.toLocaleString(),
+        icon: <ShoppingCart className="h-5 w-5" />,
+        sparkline: getSparkline(currentOrders, 7),
+      },
+      {
+        title: "Completed Orders",
+        value: completedOrders.toLocaleString(),
+        change: calcChange(completedOrders, prevCompleted),
+        previousValue: prevCompleted.toLocaleString(),
+        icon: <CheckCircle2 className="h-5 w-5" />,
+        sparkline: getSparkline(currentOrders.filter((o) => o.status !== "pending" && o.status !== "cancelled"), 7),
+      },
+      {
+        title: "Pending Orders",
+        value: pendingOrders.toLocaleString(),
+        change: calcChange(pendingOrders, prevPending),
+        previousValue: prevPending.toLocaleString(),
+        icon: <Clock className="h-5 w-5" />,
+        sparkline: getSparkline(currentOrders.filter((o) => o.status === "pending"), 7),
+      },
+      {
+        title: "Cancelled Orders",
+        value: cancelledOrders.toLocaleString(),
+        change: calcChange(cancelledOrders, prevCancelled),
+        previousValue: prevCancelled.toLocaleString(),
+        icon: <XCircle className="h-5 w-5" />,
+        sparkline: getSparkline(currentOrders.filter((o) => o.status === "cancelled"), 7),
+      },
+    ],
+    [totalOrders, completedOrders, pendingOrders, cancelledOrders, prevTotal, prevCompleted, prevPending, prevCancelled, currentOrders]
+  );
+
+  const statusCounts = useMemo(
+    () => ({
+      pending: currentOrders.filter((o) => o.status === "pending").length,
+      processing: currentOrders.filter((o) => o.status === "processing").length,
+      shipped: currentOrders.filter((o) => o.status === "shipped").length,
+      delivered: currentOrders.filter((o) => o.status === "delivered").length,
+      cancelled: currentOrders.filter((o) => o.status === "cancelled").length,
+      refunded: currentOrders.filter((o) => o.status === "refunded").length,
+    }),
+    [currentOrders]
+  );
+
+  const statusTotal = currentOrders.length || 1;
+
+  const statusData = useMemo(
+    () => [
+      { title: "Pending", count: statusCounts.pending, percentage: Number(((statusCounts.pending / statusTotal) * 100).toFixed(1)), color: "#FFB800", icon: <Clock className="h-4 w-4" /> },
+      { title: "Processing", count: statusCounts.processing, percentage: Number(((statusCounts.processing / statusTotal) * 100).toFixed(1)), color: "#4F8CFF", icon: <BarChart3 className="h-4 w-4" /> },
+      { title: "Shipped", count: statusCounts.shipped, percentage: Number(((statusCounts.shipped / statusTotal) * 100).toFixed(1)), color: "#7C5CFC", icon: <ShoppingCart className="h-4 w-4" /> },
+      { title: "Delivered", count: statusCounts.delivered, percentage: Number(((statusCounts.delivered / statusTotal) * 100).toFixed(1)), color: "#00C48C", icon: <CheckCircle2 className="h-4 w-4" /> },
+      { title: "Cancelled", count: statusCounts.cancelled, percentage: Number(((statusCounts.cancelled / statusTotal) * 100).toFixed(1)), color: "#FF5C5C", icon: <XCircle className="h-4 w-4" /> },
+      { title: "Refunded", count: statusCounts.refunded, percentage: Number(((statusCounts.refunded / statusTotal) * 100).toFixed(1)), color: "#74B9FF", icon: <RefreshCw className="h-4 w-4" /> },
+    ],
+    [statusCounts, statusTotal]
+  );
+
+  const chartData = useMemo(() => {
+    const granularity = timeFilter.toLowerCase() as "daily" | "weekly" | "monthly";
+    if (granularity === "daily") {
+      return getDailyChartData(currentOrders, 14);
+    } else if (granularity === "weekly") {
+      return getWeeklyChartData(currentOrders, 8);
+    } else {
+      return getMonthlyChartData(currentOrders, 6);
+    }
+  }, [currentOrders, timeFilter]);
+
+  const mappedOrders: TableOrder[] = currentOrders.map((o) => ({
     id: o.id,
     customer: o.customer.name,
     productCount: o.items.reduce((sum, item) => sum + item.quantity, 0),
     total: `$${o.total.toFixed(2)}`,
-    paymentStatus: "paid",
-    fulfillmentStatus: o.status === "delivered" ? "delivered" : o.status === "shipped" ? "shipped" : o.status === "processing" ? "processing" : o.status === "cancelled" ? "cancelled" : "processing",
+    paymentStatus: "pending",
+    fulfillmentStatus:
+      o.status === "delivered"
+        ? "delivered"
+        : o.status === "shipped"
+        ? "shipped"
+        : o.status === "processing"
+        ? "processing"
+        : o.status === "cancelled"
+        ? "cancelled"
+        : "processing",
     date: new Date(o.createdAt).toISOString().split("T")[0],
   }));
 
   const handleRefresh = () => {
-    setLoading(true);
-    setTimeout(() => setLoading(false), 1500);
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 1500);
   };
 
-  const handleViewOrder = (order: Order) => {
+  const handleViewOrder = (order: TableOrder) => {
     const contextOrder = orders.find((o) => o.id === order.id);
+    const items = contextOrder?.items || [];
+    const timeline = contextOrder
+      ? [
+          { title: "Order placed", timestamp: new Date(contextOrder.createdAt).toLocaleString() },
+          { title: "Status updated", timestamp: contextOrder.status },
+        ]
+      : [];
+
     setSelectedOrder({
       id: order.id,
       customer: order.customer,
-      email: contextOrder?.customer.email || "customer@example.com",
-      phone: contextOrder?.customer.phone || "+1 234 567 890",
-      address: contextOrder?.customer.address || "123 Main St, New York, NY 10001",
-      products: contextOrder?.items.map((item) => ({
+      email: contextOrder?.customer.email || "",
+      phone: contextOrder?.customer.phone || "",
+      address: contextOrder?.customer.address || "",
+      products: items.map((item) => ({
         name: item.product.name,
         quantity: item.quantity,
         price: `$${item.product.price.toFixed(2)}`,
-      })) || [
-        { name: "Product A", quantity: 2, price: "$120.00" },
-        { name: "Product B", quantity: 1, price: "$89.00" },
-      ],
-      payment: "Credit Card ending in 4242",
-      status: order.fulfillmentStatus === "delivered" ? "Delivered" : order.fulfillmentStatus === "shipped" ? "Shipped" : order.fulfillmentStatus === "processing" ? "Processing" : "Cancelled",
+      })),
+      payment: "Pending",
+      status: order.fulfillmentStatus,
       notes: "No special instructions.",
-      timeline: [
-        { title: "Order placed", timestamp: "2024-01-15 10:30 AM" },
-        { title: "Payment confirmed", timestamp: "2024-01-15 10:32 AM" },
-        { title: "Processing", timestamp: "2024-01-15 02:00 PM" },
-      ],
+      timeline,
     });
     setDrawerOpen(true);
   };
 
-  if (loading) {
+  const cycleDateRange = () => {
+    const currentIndex = dateRanges.findIndex((r) => r.key === dateRange);
+    const nextIndex = (currentIndex + 1) % dateRanges.length;
+    setDateRange(dateRanges[nextIndex].key);
+  };
+
+  const currentDateLabel = dateRanges.find((r) => r.key === dateRange)?.label || "Last 30 days";
+
+  if (loading || refreshing) {
     return <OrderSkeleton />;
   }
 
@@ -196,9 +254,9 @@ export default function OrdersPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5">
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={cycleDateRange}>
             <Calendar className="h-4 w-4" />
-            Last 30 days
+            {currentDateLabel}
             <ChevronRight className="h-3.5 w-3.5" />
           </Button>
           <Button variant="outline" size="sm" className="gap-1.5">
@@ -231,7 +289,7 @@ export default function OrdersPage() {
           </div>
           <FilterTabs items={["Daily", "Weekly", "Monthly"]} active={timeFilter} onChange={setTimeFilter} />
         </div>
-        <OrderAnalyticsChart data={chartData[timeFilter.toLowerCase() as keyof typeof chartData]} />
+        <OrderAnalyticsChart data={chartData} />
       </div>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -247,7 +305,19 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      <OrderTable orders={mappedOrders} onViewOrder={handleViewOrder} />
+      {mappedOrders.length === 0 ? (
+        <div className="flex flex-col items-center justify-center min-h-[300px] text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary mb-4">
+            <ShoppingCart className="h-6 w-6" />
+          </div>
+          <h3 className="font-semibold text-lg">No orders yet</h3>
+          <p className="text-muted-foreground mt-1 max-w-sm">
+            When customers place orders from your store, they will appear here.
+          </p>
+        </div>
+      ) : (
+        <OrderTable orders={mappedOrders} onViewOrder={handleViewOrder} />
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
@@ -301,3 +371,89 @@ export default function OrdersPage() {
     </div>
   );
 }
+
+function getSparkline(orders: StoreOrder[], days: number): number[] {
+  const result: number[] = [];
+  const now = new Date();
+  for (let i = days - 1; i >= 0; i--) {
+    const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    const dateStr = date.toISOString().split("T")[0];
+    result.push(orders.filter((o) => o.createdAt.startsWith(dateStr)).length);
+  }
+  return result;
+}
+
+function getDailyChartData(orders: StoreOrder[], days: number): { label: string; value: number }[] {
+  const result: { label: string; value: number }[] = [];
+  const now = new Date();
+  for (let i = days - 1; i >= 0; i--) {
+    const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    const label = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const dateStr = date.toISOString().split("T")[0];
+    result.push({
+      label,
+      value: orders.filter((o) => o.createdAt.startsWith(dateStr)).length,
+    });
+  }
+  return result;
+}
+
+function getWeeklyChartData(orders: StoreOrder[], weeks: number): { label: string; value: number }[] {
+  const result: { label: string; value: number }[] = [];
+  const now = new Date();
+  for (let i = weeks - 1; i >= 0; i--) {
+    const weekEnd = new Date(now.getTime() - i * 7 * 24 * 60 * 60 * 1000);
+    const weekStart = new Date(weekEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const label = `W${weeks - i}`;
+    result.push({
+      label,
+      value: orders.filter((o) => {
+        const date = new Date(o.createdAt);
+        return date >= weekStart && date < weekEnd;
+      }).length,
+    });
+  }
+  return result;
+}
+
+function getMonthlyChartData(orders: StoreOrder[], months: number): { label: string; value: number }[] {
+  const result: { label: string; value: number }[] = [];
+  const now = new Date();
+  for (let i = months - 1; i >= 0; i--) {
+    const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+    const label = monthStart.toLocaleDateString("en-US", { month: "short" });
+    result.push({
+      label,
+      value: orders.filter((o) => {
+        const date = new Date(o.createdAt);
+        return date >= monthStart && date < monthEnd;
+      }).length,
+    });
+  }
+  return result;
+}
+
+const alerts = [
+  { id: "1", priority: "high" as const, title: "High-value order pending", description: "Order #ORD-002 worth $89.00 is pending payment for 2 hours.", estimatedImpact: "Potential $89.00 loss", icon: "high-value" as const },
+  { id: "2", priority: "high" as const, title: "Payment failed", description: "Payment failed for order #ORD-004. Customer may need to retry.", estimatedImpact: "$156.00 at risk", icon: "payment" as const },
+  { id: "3", priority: "medium" as const, title: "Shipping delayed", description: "Order #ORD-003 shipping delayed due to carrier issues.", estimatedImpact: "Customer satisfaction impact", icon: "shipping" as const },
+  { id: "4", priority: "medium" as const, title: "Refund requested", description: "Customer requested refund for order #ORD-006.", estimatedImpact: "$65.00 refund", icon: "refund" as const },
+  { id: "5", priority: "low" as const, title: "Inventory unavailable", description: "2 items in order #ORD-007 are out of stock.", estimatedImpact: "Delayed fulfillment", icon: "inventory" as const },
+  { id: "6", priority: "low" as const, title: "Customer waiting", description: "Customer has been waiting for status update for 24 hours.", estimatedImpact: "Satisfaction risk", icon: "customer" as const },
+];
+
+const timelineEvents = [
+  { id: "1", title: "New order received", description: "Order #ORD-008 placed by Emma Davis.", timestamp: "10 minutes ago", icon: "order" as const },
+  { id: "2", title: "Order shipped", description: "Order #ORD-003 has been shipped via Express.", timestamp: "1 hour ago", icon: "shipped" as const },
+  { id: "3", title: "Refund processed", description: "Refund of $65.00 processed for order #ORD-006.", timestamp: "3 hours ago", icon: "refund" as const },
+  { id: "4", title: "Payment failed", description: "Payment failed for order #ORD-004.", timestamp: "5 hours ago", icon: "order" as const },
+  { id: "5", title: "Customer cancelled order", description: "Order #ORD-009 was cancelled by customer.", timestamp: "1 day ago", icon: "cancelled" as const },
+];
+
+const customerInsights = [
+  { title: "Returning Customers", value: "42%", change: 5.2 },
+  { title: "First-time Buyers", value: "58%", change: 12.1 },
+  { title: "Avg Order Value", value: "$85.40", change: 3.8 },
+  { title: "Repeat Purchase Rate", value: "28%", change: -1.5 },
+];

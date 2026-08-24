@@ -36,6 +36,6 @@ export interface Order {
   subtotal: number;
   shipping: number;
   total: number;
-  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled" | "refunded";
   createdAt: string;
 }
