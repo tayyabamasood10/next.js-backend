@@ -19,27 +19,60 @@ export default function ProductDetailPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
+  const productId = params?.id;
+  const storeSlug = params?.slug;
+
   useEffect(() => {
-    const fetchProduct = async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .eq("id", params.id)
-        .eq("status", "active")
-        .single();
-
-      if (error || !data) {
+    if (!productId) {
+      const timer = setTimeout(() => {
         setNotFound(true);
-      } else {
-        setProduct(data as Product);
-      }
+        setLoading(false);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
 
-      setLoading(false);
+    let cancelled = false;
+
+    const fetchProduct = async () => {
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("products")
+          .select("*")
+          .eq("id", productId as string)
+          .eq("status", "active")
+          .single();
+
+        if (cancelled) return;
+
+        const timer = setTimeout(() => {
+          if (error || !data) {
+            console.error("Product fetch error:", error);
+            setNotFound(true);
+          } else {
+            setProduct(data as Product);
+          }
+          setLoading(false);
+        }, 0);
+
+        return () => clearTimeout(timer);
+      } catch (err) {
+        if (cancelled) return;
+        const timer = setTimeout(() => {
+          console.error("Product fetch exception:", err);
+          setNotFound(true);
+          setLoading(false);
+        }, 0);
+        return () => clearTimeout(timer);
+      }
     };
 
     fetchProduct();
-  }, [params.id]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [productId]);
 
   const handleAddToCart = () => {
     if (!product) return;
@@ -66,13 +99,16 @@ export default function ProductDetailPage() {
     );
   }
 
-  if (notFound || !product) {
+  if (notFound || !product || !storeSlug) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-2">Product Not Found</h1>
-          <Link href={`/store/${params.slug}`}>
-            <Button variant="outline" className="mt-4">
+          <p className="text-muted-foreground mb-4">
+            The product you are looking for does not exist or is no longer available.
+          </p>
+          <Link href={`/store/${storeSlug || ""}`}>
+            <Button variant="outline">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Store
             </Button>
@@ -86,7 +122,7 @@ export default function ProductDetailPage() {
     <div className="min-h-screen">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <Link
-          href={`/store/${params.slug}`}
+          href={`/store/${storeSlug}`}
           className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
@@ -149,7 +185,7 @@ export default function ProductDetailPage() {
               </Button>
             </div>
 
-            <Link href={`/store/${params.slug}/cart`} className="mt-4">
+            <Link href={`/store/${storeSlug}/cart`} className="mt-4">
               <Button variant="outline" className="w-full">
                 View Cart
               </Button>
