@@ -4,6 +4,7 @@ import { ProblemItem } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, ArrowRight, Zap } from "lucide-react";
+import { cn } from "@/components/ui/cn";
 
 const severityConfig = {
   high: { label: "High", variant: "destructive" as const, className: "bg-danger/10 text-danger border-danger/20" },
@@ -11,34 +12,11 @@ const severityConfig = {
   low: { label: "Low", variant: "success" as const, className: "bg-success/10 text-success border-success/20" },
 };
 
-const problems: ProblemItem[] = [
-  {
-    id: "1",
-    severity: "high",
-    title: "High checkout abandonment rate",
-    description:
-      "68% of users abandon their cart at checkout. This is 15% above industry average.",
-    estimatedImpact: "$12,400/mo",
-  },
-  {
-    id: "2",
-    severity: "medium",
-    title: "Low mobile conversion rate",
-    description:
-      "Mobile users convert at 1.8% compared to 4.2% on desktop. Mobile experience needs improvement.",
-    estimatedImpact: "$8,200/mo",
-  },
-  {
-    id: "3",
-    severity: "low",
-    title: "Missing product reviews",
-    description:
-      "32% of your products have no reviews. Products with reviews convert 2.5x better.",
-    estimatedImpact: "$3,100/mo",
-  },
-];
+interface RevenueProblemsProps {
+  problems: ProblemItem[];
+}
 
-export function RevenueProblems() {
+export function RevenueProblems({ problems }: RevenueProblemsProps) {
   return (
     <div className="bg-card border border-border rounded-[18px] shadow-sm">
       <div className="flex items-center justify-between border-b border-border px-6 py-4">
@@ -95,5 +73,3 @@ export function RevenueProblems() {
     </div>
   );
 }
-
-import { cn } from "@/components/ui/cn";

@@ -1,45 +1,12 @@
 "use client";
 
 import { ActivityItem } from "@/types";
-import {
-  CheckCircle2,
-  AlertTriangle,
-  Sparkles,
-  Rocket,
-} from "lucide-react";
 
-const activities: ActivityItem[] = [
-  {
-    id: "1",
-    title: "Store synced successfully",
-    description: "Your Shopify store data has been updated.",
-    timestamp: "2 hours ago",
-    icon: <CheckCircle2 className="h-4 w-4 text-success" />,
-  },
-  {
-    id: "2",
-    title: "New problem detected",
-    description: "High checkout abandonment rate identified.",
-    timestamp: "4 hours ago",
-    icon: <AlertTriangle className="h-4 w-4 text-warning" />,
-  },
-  {
-    id: "3",
-    title: "Recommendation generated",
-    description: "AI suggests improving mobile checkout.",
-    timestamp: "5 hours ago",
-    icon: <Sparkles className="h-4 w-4 text-primary" />,
-  },
-  {
-    id: "4",
-    title: "Campaign created",
-    description: "Recovery email campaign for abandoned carts.",
-    timestamp: "1 day ago",
-    icon: <Rocket className="h-4 w-4 text-primary" />,
-  },
-];
+interface ActivityTimelineProps {
+  activities: ActivityItem[];
+}
 
-export function ActivityTimeline() {
+export function ActivityTimeline({ activities }: ActivityTimelineProps) {
   return (
     <div className="bg-card border border-border rounded-[18px] shadow-sm">
       <div className="border-b border-border px-6 py-4">
