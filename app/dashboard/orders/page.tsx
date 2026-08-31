@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { OrderStatCard } from "@/components/orders/order-stat-card";
 import { OrderStatusCard } from "@/components/orders/order-status-card";
 import { OrderAnalyticsChart } from "@/components/orders/order-analytics-chart";
@@ -12,6 +12,7 @@ import { OrderDetailsDrawer } from "@/components/orders/order-details-drawer";
 import { OrderSkeleton } from "@/components/orders/order-skeleton";
 import { FilterTabs } from "@/components/orders/filter-tabs";
 import { useOrders } from "@/context/order-context";
+import { callAI, AIInsightResponse } from "@/lib/ai";
 import {
   ShoppingCart,
   CheckCircle2,
@@ -24,6 +25,7 @@ import {
   RefreshCw,
   Search,
   Filter,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +41,15 @@ interface TableOrder {
   paymentStatus: "paid" | "pending" | "failed" | "refunded";
   fulfillmentStatus: "processing" | "shipped" | "delivered" | "cancelled";
   date: string;
+}
+
+interface OrderAlert {
+  id: string;
+  priority: "high" | "medium" | "low";
+  title: string;
+  description: string;
+  estimatedImpact: string;
+  icon: "payment" | "shipping" | "refund" | "inventory" | "customer" | "high-value";
 }
 
 const dateRanges = [
@@ -65,6 +76,8 @@ export default function OrdersPage() {
   } | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [aiInsight, setAiInsight] = useState<AIInsightResponse | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const now = useMemo(() => new Date(), []);
   const rangeDays = dateRange === "7d" ? 7 : dateRange === "30d" ? 30 : 90;
@@ -240,6 +253,154 @@ export default function OrdersPage() {
 
   const currentDateLabel = dateRanges.find((r) => r.key === dateRange)?.label || "Last 30 days";
 
+  useEffect(() => {
+    if (loading || totalOrders === 0) {
+      const timer = setTimeout(() => setAiInsight(null), 0);
+      return () => clearTimeout(timer);
+    }
+
+    const fetchAI = async () => {
+      setAiLoading(true);
+      try {
+        const processingOrders = currentOrders.filter((o) => o.status === "processing").length;
+        const shippedOrders = currentOrders.filter((o) => o.status === "shipped").length;
+        const deliveredOrders = currentOrders.filter((o) => o.status === "delivered").length;
+        const refundedOrders = currentOrders.filter((o) => o.status === "refunded").length;
+
+        const data = await callAI("orders", {
+          revenue: currentOrders.reduce((sum, o) => sum + o.total, 0),
+          orders: totalOrders,
+          customers: new Set(currentOrders.map((o) => o.customer.email.toLowerCase())).size,
+          avgOrderValue: totalOrders > 0 ? currentOrders.reduce((sum, o) => sum + o.total, 0) / totalOrders : 0,
+          pendingOrders,
+          cancelledOrders,
+          refundedOrders,
+          revenueGrowth: calcChange(currentOrders.reduce((sum, o) => sum + o.total, 0), previousOrders.reduce((sum, o) => sum + o.total, 0)),
+          ordersGrowth: calcChange(totalOrders, prevTotal),
+          aovGrowth: 0,
+          topProducts: [],
+          completedOrders,
+          processingOrders,
+          shippedOrders,
+          deliveredOrders,
+          statusBreakdown: statusCounts,
+        });
+        setAiInsight(data);
+      } catch {
+        // keep existing fallback UI if AI fails
+      } finally {
+        setAiLoading(false);
+      }
+    };
+
+    fetchAI();
+  }, [loading, totalOrders, currentOrders, previousOrders, pendingOrders, cancelledOrders, completedOrders, statusCounts, prevTotal]);
+
+  const realAlerts = useMemo(() => {
+    const alerts: OrderAlert[] = [];
+    
+    const pendingHighValue = currentOrders
+      .filter((o) => o.status === "pending" && o.total > 50)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 2);
+    
+    pendingHighValue.forEach((o) => {
+      alerts.push({
+        id: o.id,
+        priority: "high" as const,
+        title: `High-value order pending`,
+        description: `Order #${o.id.slice(0, 8)} worth $${o.total.toFixed(2)} is pending payment.`,
+        estimatedImpact: `Potential $${o.total.toFixed(2)} loss`,
+        icon: "high-value" as const,
+      });
+    });
+
+    const cancelled = currentOrders.filter((o) => o.status === "cancelled" || o.status === "refunded");
+    if (cancelled.length > 0) {
+      const loss = cancelled.reduce((sum, o) => sum + o.total, 0);
+      alerts.push({
+        id: "cancelled",
+        priority: "high" as const,
+        title: "Cancelled/Refunded orders detected",
+        description: `${cancelled.length} orders were cancelled or refunded.`,
+        estimatedImpact: `$${loss.toFixed(2)} at risk`,
+        icon: "refund" as const,
+      });
+    }
+
+    const stuckProcessing = currentOrders.filter((o) => {
+      const date = new Date(o.createdAt);
+      const daysSince = (now.getTime() - date.getTime()) / (24 * 60 * 60 * 1000);
+      return o.status === "processing" && daysSince > 3;
+    });
+
+    if (stuckProcessing.length > 0) {
+      alerts.push({
+        id: "stuck",
+        priority: "medium" as const,
+        title: "Orders stuck in processing",
+        description: `${stuckProcessing.length} orders have been processing for over 3 days.`,
+        estimatedImpact: "Customer satisfaction risk",
+        icon: "shipping" as const,
+      });
+    }
+
+    if (alerts.length === 0 && totalOrders > 0) {
+      alerts.push({
+        id: "healthy",
+        priority: "low" as const,
+        title: "All orders on track",
+        description: "No urgent order issues detected.",
+        estimatedImpact: "$0",
+        icon: "payment" as const,
+      });
+    }
+
+    return alerts;
+  }, [currentOrders, totalOrders, now]);
+
+  const realTimelineEvents = useMemo(() => {
+    return currentOrders
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 5)
+      .map((o) => ({
+        id: o.id,
+        title: `Order #${o.id.slice(0, 8)} placed`,
+        description: `${o.customer.name} purchased ${o.items.reduce((sum, item) => sum + item.quantity, 0)} items for $${o.total.toFixed(2)}`,
+        timestamp: getTimeAgo(new Date(o.createdAt)),
+        icon: "order" as const,
+      }));
+  }, [currentOrders]);
+
+  const customerInsights = useMemo(() => {
+    if (totalOrders === 0) {
+      return [
+        { title: "Returning Customers", value: "0%", change: 0 },
+        { title: "First-time Buyers", value: "100%", change: 0 },
+        { title: "Avg Order Value", value: "$0.00", change: 0 },
+        { title: "Repeat Purchase Rate", value: "0%", change: 0 },
+      ];
+    }
+
+    const customerOrderCounts = new Map<string, number>();
+    currentOrders.forEach((o) => {
+      const email = o.customer.email.toLowerCase();
+      customerOrderCounts.set(email, (customerOrderCounts.get(email) || 0) + 1);
+    });
+
+    const returning = Array.from(customerOrderCounts.values()).filter((count) => count > 1).length;
+    const totalCustomers = customerOrderCounts.size;
+    const returningPercent = totalCustomers > 0 ? (returning / totalCustomers) * 100 : 0;
+    const avgVal = currentOrders.reduce((sum, o) => sum + o.total, 0) / totalOrders;
+
+    return [
+      { title: "Returning Customers", value: `${returningPercent.toFixed(0)}%`, change: 0 },
+      { title: "First-time Buyers", value: `${(100 - returningPercent).toFixed(0)}%`, change: 0 },
+      { title: "Avg Order Value", value: `$${avgVal.toFixed(2)}`, change: 0 },
+      { title: "Repeat Purchase Rate", value: `${totalCustomers > 0 ? (returning / totalCustomers * 100).toFixed(0) : 0}%`, change: 0 },
+    ];
+  }, [currentOrders, totalOrders]);
+
   if (loading || refreshing) {
     return <OrderSkeleton />;
   }
@@ -321,20 +482,37 @@ export default function OrdersPage() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <OrderAlertCard alerts={alerts} />
+          <OrderAlertCard alerts={realAlerts} />
         </div>
         <div>
-          <AIOrderInsightCard
-            title="Mobile payment failures increased"
-            description="AI detected an increase in failed mobile payments. This could be due to payment gateway issues or poor mobile checkout experience."
-            estimatedImpact="$1,240/month"
-            actions={[
-              "Review payment gateway configuration",
-              "Retry failed payments automatically",
-              "Notify affected customers",
-            ]}
-            impact="+$1,240/mo potential recovery"
-          />
+          {aiLoading ? (
+            <div className="relative overflow-hidden rounded-[18px] border border-border bg-card p-6 shadow-sm">
+              <div className="flex items-center gap-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold">Analyzing orders...</h3>
+                  <p className="text-xs text-muted-foreground">Generating AI insights</p>
+                </div>
+              </div>
+            </div>
+          ) : aiInsight ? (
+            <AIOrderInsightCard
+              title={aiInsight.insight}
+              description={aiInsight.recommendation}
+              estimatedImpact={aiInsight.impact || "Review required"}
+              actions={aiInsight.opportunity ? [aiInsight.opportunity] : ["Review order status and fulfillment process"]}
+              impact={aiInsight.problem ? `Problem: ${aiInsight.problem}` : undefined}
+            />
+          ) : (
+            <AIOrderInsightCard
+              title="Order performance overview"
+              description="Start processing orders to receive AI-powered insights about your fulfillment performance."
+              estimatedImpact="$0"
+              actions={["Process pending orders", "Review fulfillment workflow"]}
+            />
+          )}
         </div>
       </div>
 
@@ -350,7 +528,7 @@ export default function OrdersPage() {
         ))}
       </div>
 
-      <OrderTimelineCard events={timelineEvents} />
+      <OrderTimelineCard events={realTimelineEvents} />
 
       <OrderDetailsDrawer
         open={drawerOpen}
@@ -434,26 +612,15 @@ function getMonthlyChartData(orders: StoreOrder[], months: number): { label: str
   return result;
 }
 
-const alerts = [
-  { id: "1", priority: "high" as const, title: "High-value order pending", description: "Order #ORD-002 worth $89.00 is pending payment for 2 hours.", estimatedImpact: "Potential $89.00 loss", icon: "high-value" as const },
-  { id: "2", priority: "high" as const, title: "Payment failed", description: "Payment failed for order #ORD-004. Customer may need to retry.", estimatedImpact: "$156.00 at risk", icon: "payment" as const },
-  { id: "3", priority: "medium" as const, title: "Shipping delayed", description: "Order #ORD-003 shipping delayed due to carrier issues.", estimatedImpact: "Customer satisfaction impact", icon: "shipping" as const },
-  { id: "4", priority: "medium" as const, title: "Refund requested", description: "Customer requested refund for order #ORD-006.", estimatedImpact: "$65.00 refund", icon: "refund" as const },
-  { id: "5", priority: "low" as const, title: "Inventory unavailable", description: "2 items in order #ORD-007 are out of stock.", estimatedImpact: "Delayed fulfillment", icon: "inventory" as const },
-  { id: "6", priority: "low" as const, title: "Customer waiting", description: "Customer has been waiting for status update for 24 hours.", estimatedImpact: "Satisfaction risk", icon: "customer" as const },
-];
-
-const timelineEvents = [
-  { id: "1", title: "New order received", description: "Order #ORD-008 placed by Emma Davis.", timestamp: "10 minutes ago", icon: "order" as const },
-  { id: "2", title: "Order shipped", description: "Order #ORD-003 has been shipped via Express.", timestamp: "1 hour ago", icon: "shipped" as const },
-  { id: "3", title: "Refund processed", description: "Refund of $65.00 processed for order #ORD-006.", timestamp: "3 hours ago", icon: "refund" as const },
-  { id: "4", title: "Payment failed", description: "Payment failed for order #ORD-004.", timestamp: "5 hours ago", icon: "order" as const },
-  { id: "5", title: "Customer cancelled order", description: "Order #ORD-009 was cancelled by customer.", timestamp: "1 day ago", icon: "cancelled" as const },
-];
-
-const customerInsights = [
-  { title: "Returning Customers", value: "42%", change: 5.2 },
-  { title: "First-time Buyers", value: "58%", change: 12.1 },
-  { title: "Avg Order Value", value: "$85.40", change: 3.8 },
-  { title: "Repeat Purchase Rate", value: "28%", change: -1.5 },
-];
+function getTimeAgo(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? "s" : ""} ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}

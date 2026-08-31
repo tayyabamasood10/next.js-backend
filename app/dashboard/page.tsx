@@ -8,9 +8,10 @@ import { AIRecommendation } from "@/components/dashboard/ai-recommendation";
 import { ActivityTimeline } from "@/components/dashboard/activity-timeline";
 import { useOrders } from "@/context/order-context";
 import { createClient } from "@/lib/supabase/client";
+import { callAI } from "@/lib/ai";
 import { DollarSign, ShoppingCart, Users, TrendingUp, CheckCircle2 } from "lucide-react";
 import { Order } from "@/types/store";
-import { StatCardProps, ProblemItem, RecommendationItem, ActivityItem } from "@/types";
+import { StatCardProps, ProblemItem, RecommendationItem, ActivityItem, AIInsight } from "@/types";
 
 function getSparkline(orderList: Order[], now: Date, days: number): number[] {
   const result: number[] = [];
@@ -29,6 +30,8 @@ function getSparkline(orderList: Order[], now: Date, days: number): number[] {
 export default function DashboardPage() {
   const { orders, loading } = useOrders();
   const [userName, setUserName] = useState("");
+  const [aiInsight, setAiInsight] = useState<AIInsight | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -111,6 +114,56 @@ export default function DashboardPage() {
   const revenueGrowth = calcChange(totalRevenue, previousRevenue);
   const ordersGrowth = calcChange(totalOrders, prevTotalOrders);
   const aovGrowth = calcChange(avgOrderValue, prevAov);
+
+  useEffect(() => {
+    if (loading || totalOrders === 0) {
+      const timer = setTimeout(() => setAiInsight(null), 0);
+      return () => clearTimeout(timer);
+    }
+
+    const fetchAI = async () => {
+      setAiLoading(true);
+      try {
+        const topProducts = validCurrentOrders
+          .filter((o) => o.status !== "cancelled" && o.status !== "refunded")
+          .flatMap((o) =>
+            o.items.map((item) => ({
+              name: item.product.name,
+              revenue: item.product.price * item.quantity,
+            }))
+          )
+          .reduce<Map<string, number>>((acc, item) => {
+            acc.set(item.name, (acc.get(item.name) || 0) + item.revenue);
+            return acc;
+          }, new Map());
+
+        const sortedProducts = Array.from(topProducts.entries())
+          .map(([name, revenue]) => ({ name, revenue }))
+          .sort((a, b) => b.revenue - a.revenue);
+
+        const data = await callAI("dashboard", {
+          revenue: totalRevenue,
+          orders: totalOrders,
+          customers: totalCustomers,
+          avgOrderValue,
+          pendingOrders: validCurrentOrders.filter((o) => o.status === "pending").length,
+          cancelledOrders: validCurrentOrders.filter((o) => o.status === "cancelled").length,
+          refundedOrders: validCurrentOrders.filter((o) => o.status === "refunded").length,
+          revenueGrowth,
+          ordersGrowth,
+          aovGrowth,
+          topProducts: sortedProducts,
+        });
+        setAiInsight(data);
+      } catch {
+        // keep existing fallback UI if AI fails
+      } finally {
+        setAiLoading(false);
+      }
+    };
+
+    fetchAI();
+  }, [loading, totalOrders, totalRevenue, totalCustomers, avgOrderValue, revenueGrowth, ordersGrowth, aovGrowth, validCurrentOrders]);
 
   const stats: StatCardProps[] = useMemo(
     () => [
@@ -243,10 +296,10 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <RevenueProblems problems={problems} />
+          <RevenueProblems problems={problems} aiInsight={aiInsight ? { problem: aiInsight.problem, impact: aiInsight.impact } : null} />
         </div>
         <div>
-          <AIRecommendation recommendation={recommendation} />
+          <AIRecommendation recommendation={recommendation} aiInsight={aiInsight} aiLoading={aiLoading} />
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { RevenueCard } from "@/components/revenue/revenue-card";
 import { FilterTabs } from "@/components/revenue/filter-tabs";
 import { RevenueTrendChart } from "@/components/revenue/revenue-trend-chart";
@@ -10,9 +10,10 @@ import { RevenueLeakCard } from "@/components/revenue/revenue-leak-card";
 import { TimelineCard } from "@/components/revenue/timeline-card";
 import { RevenueSkeleton } from "@/components/revenue/revenue-skeleton";
 import { RevenueEmptyState } from "@/components/revenue/revenue-empty-states";
-import { DollarSign, TrendingUp, ShoppingCart, BarChart3, ChevronRight, Calendar, Download, RefreshCw } from "lucide-react";
+import { DollarSign, TrendingUp, ShoppingCart, BarChart3, ChevronRight, Calendar, Download, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useOrders } from "@/context/order-context";
+import { callAI, AIInsightResponse } from "@/lib/ai";
 import { Order } from "@/types/store";
 
 type DateRange = "7d" | "30d" | "90d" | "1y";
@@ -129,6 +130,8 @@ export default function RevenuePage() {
   const { orders, loading } = useOrders();
   const [timeFilter, setTimeFilter] = useState("Monthly");
   const [dateRange, setDateRange] = useState<DateRange>("30d");
+  const [aiInsight, setAiInsight] = useState<AIInsightResponse | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const now = useMemo(() => new Date(), []);
   const rangeDays = dateRange === "7d" ? 7 : dateRange === "30d" ? 30 : dateRange === "90d" ? 90 : 365;
@@ -206,6 +209,7 @@ export default function RevenuePage() {
 
   const totalAllCurrentRevenue = currentOrders.reduce((sum, o) => sum + o.total, 0);
   const netRevenueGrowth = calcChange(totalRevenue, previousRevenue);
+  const hasValidOrders = validCurrentOrders.length > 0;
 
   const chartData = useMemo(() => {
     const granularity = timeFilter.toLowerCase() as "daily" | "weekly" | "monthly" | "yearly";
@@ -349,11 +353,51 @@ export default function RevenuePage() {
     ]
   );
 
+  useEffect(() => {
+    if (loading || !hasValidOrders) {
+      const timer = setTimeout(() => setAiInsight(null), 0);
+      return () => clearTimeout(timer);
+    }
+
+    const fetchAI = async () => {
+      setAiLoading(true);
+      try {
+        const data = await callAI("revenue", {
+          revenue: totalRevenue,
+          orders: totalOrders,
+          customers: new Set(validCurrentOrders.map((o) => o.customer.email.toLowerCase())).size,
+          avgOrderValue,
+          pendingOrders: validCurrentOrders.filter((o) => o.status === "pending").length,
+          cancelledOrders: validCurrentOrders.filter((o) => o.status === "cancelled").length,
+          refundedOrders: validCurrentOrders.filter((o) => o.status === "refunded").length,
+          revenueGrowth,
+          ordersGrowth: 0,
+          aovGrowth,
+          topProducts: topProducts.map((p) => ({ name: p.name, revenue: parseFloat(p.revenue.replace("$", "").replace(",", "")) })),
+          totalAllCurrentRevenue: totalAllCurrentRevenue,
+          netRevenueGrowth,
+          previousRevenue,
+          prevAov,
+          productBreakdown: productsBreakdown.map((p) => ({
+            name: p.label,
+            revenue: parseFloat(p.value.replace("$", "").replace(",", "")),
+            percentage: p.percentage,
+          })),
+        });
+        setAiInsight(data);
+      } catch {
+        // keep existing fallback UI if AI fails
+      } finally {
+        setAiLoading(false);
+      }
+    };
+
+    fetchAI();
+  }, [loading, hasValidOrders, totalRevenue, totalOrders, avgOrderValue, revenueGrowth, aovGrowth, validCurrentOrders, topProducts, totalAllCurrentRevenue, netRevenueGrowth, previousRevenue, prevAov, productsBreakdown]);
+
   if (loading) {
     return <RevenueSkeleton />;
   }
-
-  const hasValidOrders = validCurrentOrders.length > 0;
 
   return (
     <div className="space-y-6">
@@ -407,10 +451,40 @@ export default function RevenuePage() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <RevenueLeakCard leaks={[]} />
+          {aiLoading ? (
+            <div className="bg-card border border-border rounded-[18px] shadow-sm p-6">
+              <div className="flex items-center gap-3">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <h3 className="text-base font-semibold">Analyzing revenue...</h3>
+              </div>
+            </div>
+          ) : aiInsight ? (
+            <RevenueLeakCard
+              leaks={[
+                {
+                  id: "ai-insight",
+                  severity: "high" as const,
+                  title: aiInsight.insight,
+                  description: aiInsight.recommendation,
+                  estimatedLoss: aiInsight.impact || "Review required",
+                },
+              ]}
+            />
+          ) : (
+            <RevenueLeakCard leaks={[]} />
+          )}
         </div>
         <div>
-          <RevenueEmptyState type="no-forecast" />
+          {aiLoading ? (
+            <RevenueEmptyState type="no-forecast" />
+          ) : aiInsight ? (
+            <div className="bg-card border border-border rounded-[18px] shadow-sm p-6">
+              <h3 className="text-base font-semibold mb-2">AI Opportunity</h3>
+              <p className="text-sm text-muted-foreground">{aiInsight.opportunity}</p>
+            </div>
+          ) : (
+            <RevenueEmptyState type="no-forecast" />
+          )}
         </div>
       </div>
 

@@ -14,9 +14,26 @@ const severityConfig = {
 
 interface RevenueProblemsProps {
   problems: ProblemItem[];
+  aiInsight: {
+    problem: string | null;
+    impact: string | null;
+  } | null;
 }
 
-export function RevenueProblems({ problems }: RevenueProblemsProps) {
+export function RevenueProblems({ problems, aiInsight }: RevenueProblemsProps) {
+  const displayProblems = aiInsight?.problem
+    ? [
+        {
+          id: "ai-problem",
+          severity: "high" as const,
+          title: aiInsight.problem,
+          description: aiInsight.impact || "Detected from your current store data.",
+          estimatedImpact: aiInsight.impact || "Review required",
+        },
+        ...problems,
+      ]
+    : problems;
+
   return (
     <div className="bg-card border border-border rounded-[18px] shadow-sm">
       <div className="flex items-center justify-between border-b border-border px-6 py-4">
@@ -30,7 +47,7 @@ export function RevenueProblems({ problems }: RevenueProblemsProps) {
         </Button>
       </div>
       <div className="divide-y divide-border">
-        {problems.map((problem) => {
+        {displayProblems.map((problem) => {
           const severity = severityConfig[problem.severity];
           return (
             <div

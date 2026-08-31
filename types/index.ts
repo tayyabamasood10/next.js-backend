@@ -36,3 +36,11 @@ export interface ActivityItem {
   timestamp: string;
   icon: React.ReactNode;
 }
+
+export interface AIInsight {
+  insight: string;
+  problem: string | null;
+  impact: string | null;
+  recommendation: string;
+  opportunity: string;
+}
