@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Search, Bell, ChevronRight, Calendar, ChevronDown, Sparkles, LogOut } from "lucide-react";
+import { Search, Bell, ChevronRight, ChevronDown, Sparkles, LogOut } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -103,12 +103,6 @@ export function Navbar({ breadcrumb }: NavbarProps) {
       </div>
 
       <div className="flex items-center gap-2">
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-2 py-1.5">
-          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Last 30 days</span>
-          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-        </div>
-
         <div
           className={cn(
             "relative transition-all duration-200",

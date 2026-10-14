@@ -2,8 +2,7 @@
 
 import { ProblemItem } from "@/types";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { AlertTriangle, ArrowRight, Zap } from "lucide-react";
+import { AlertTriangle, Zap } from "lucide-react";
 import { cn } from "@/components/ui/cn";
 
 const severityConfig = {
@@ -41,10 +40,6 @@ export function RevenueProblems({ problems, aiInsight }: RevenueProblemsProps) {
           <AlertTriangle className="h-5 w-5 text-warning" />
           <h2 className="text-lg font-semibold">Revenue Problems</h2>
         </div>
-        <Button variant="ghost" size="sm" className="text-muted-foreground">
-          View all
-          <ArrowRight className="ml-1 h-4 w-4" />
-        </Button>
       </div>
       <div className="divide-y divide-border">
         {displayProblems.map((problem) => {
@@ -79,9 +74,6 @@ export function RevenueProblems({ problems, aiInsight }: RevenueProblemsProps) {
                   </p>
                   <p className="text-xs text-muted-foreground">at risk</p>
                 </div>
-                <Button variant="outline" size="sm">
-                  Investigate
-                </Button>
               </div>
             </div>
           );
