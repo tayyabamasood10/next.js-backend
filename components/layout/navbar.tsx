@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Search, Bell, ChevronRight, ChevronDown, Sparkles, LogOut } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { ChevronRight, ChevronDown, Sparkles, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -25,7 +24,6 @@ interface NavbarProps {
 
 export function Navbar({ breadcrumb }: NavbarProps) {
   const router = useRouter();
-  const [searchFocused, setSearchFocused] = useState(false);
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [userInitials, setUserInitials] = useState("JD");
@@ -103,21 +101,6 @@ export function Navbar({ breadcrumb }: NavbarProps) {
       </div>
 
       <div className="flex items-center gap-2">
-        <div
-          className={cn(
-            "relative transition-all duration-200",
-            searchFocused ? "w-64" : "w-40"
-          )}
-        >
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search..."
-            className="pl-9 h-9"
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-          />
-        </div>
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-1.5">
@@ -139,13 +122,6 @@ export function Navbar({ breadcrumb }: NavbarProps) {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-4 w-4" />
-          <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5 items-center justify-center rounded-full bg-danger">
-            <span className="sr-only">Notifications</span>
-          </span>
-        </Button>
 
         <Separator orientation="vertical" className="h-6" />
 
